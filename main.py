@@ -5,6 +5,7 @@ import zipfile
 import tensorflow as tf
 from tensorflow import keras
 import cv2
+import os
 
 HEIGHT = 128
 WIDTH = 128
@@ -12,23 +13,17 @@ CLASS_NAMES = ['lasagna', 'burrito', 'tacos', 'sushi', 'gyoza', 'pizza',
                'sashimi', 'edamame', 'pasta', 'risotto', 'nachos', 'ramen']
 
 
-def read_data(path, im_size, class_names_label):
+def read_data(path, im_size):
     X = []
-    y = []
     file_paths = []
-    for folder in os.listdir(path):
-        label = class_names_label[folder]
-        folder_path = os.path.join(path, folder)
-        for file in os.listdir(folder_path):
-            image_path = os.path.join(folder_path, file)
-            file_paths.append(image_path)
-            image = cv2.imread(image_path)
-            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            image = cv2.resize(image, im_size)
-            X.append(image)
-            y.append(label)
-
-    return np.array(X), np.array(y), np.array(file_paths)
+    for file in os.listdir(path):
+        image_path = os.path.join(path, file)
+        file_paths.append(image_path)
+        image = cv2.imread(image_path)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        image = cv2.resize(image, im_size)
+        X.append(image)
+    return np.array(X), np.array(file_paths)
 
 def mapping(values, class_label_name):
     true_finalLabel = []
@@ -37,10 +32,10 @@ def mapping(values, class_label_name):
     return true_finalLabel
 
 
-def mapping_cuisine(values):
+def mapping_cuisine(values, class_label_name):
     italian_food = ["risotto", "pasta", "lasagna", "pizza"]
-    japanese_food = ["tacos", "burrito", "nachos"]
-    mexican_food = ["gyoza", "sushi", "edamame", "sashimi", "ramen"]
+    japanese_food = ["gyoza", "sushi", "edamame", "sashimi", "ramen"] 
+    mexican_food = ["tacos", "burrito", "nachos"]
 
     true_finalLabel = []
     for elem in values:
@@ -67,7 +62,6 @@ st.set_page_config(
     layout = "wide"
 
 )
-datos = pd.read_csv("data/red_recarga_acceso_publico_2021.csv", sep=";")
 
 col1, col2, col3 = st.columns([1,5,1])
 with col2:
@@ -81,10 +75,11 @@ if uploaded_file is not None:
     try:
         with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
             zip_ref.extractall("images/")
+            folder_name = zip_ref.namelist()[0]
     except:
         st.write("error")
 
-option = st.sidebar.selectbox("Select the view", ("Home", "Prediction"))
+option = st.sidebar.selectbox("Select the view", ("Home", "Predictions"))
 
 
 st.sidebar.write(option)
@@ -93,7 +88,7 @@ st.sidebar.write(option)
 #with st.sidebar:
 #    option = st.selectbox("Select the view", ("Home", "Visualization", "Map"))
 #    st.write(option)
-description = """"
+description = """
 This app is part of the Machine Learning project I carried out at the Data Science bootcamp at The Bridge school.
 I trained a convolutional neural network model (summarized in the banner picture of this website), to classify food 
 pictures with the final aim of predicting the type of restaurant from pictures taken from TripAdvisor.
@@ -114,8 +109,10 @@ corresponding to 3 types of cuisine. The categories and type of cuisines are the
 - Burrito (Mexican)
 - Nachos  (Mexican)
 
+
 I reached an accuracy on classifying these dishes of 0.65 (on validation set), and an accuracy on classifying type of cuisine
 of 0.78.
+
 
 Please, consider that uploading images of other food categories will not give good results.
 
@@ -129,21 +126,36 @@ if option=="Home":
 
 
 elif option=="Predictions":
-    st.subheader("Prediction")
+    if uploaded_file is not None:
+        st.subheader("Predictions")
 
-    class_label_name = {i:class_name for i ,class_name in enumerate(CLASS_NAMES)}
-    X_test, y_test, file_paths = read_data("image/", (HEIGHT,WIDTH), class_names_label)
-    predictions = model.predict(tf.convert_to_tensor(X_test, dtype=tf.int32))
-    preds_test = [x.argmax() for x in predictions]
+        class_label_name = {i:class_name for i ,class_name in enumerate(CLASS_NAMES)}
+        X_test, file_paths = read_data(f"images/{folder_name}", (HEIGHT,WIDTH))
 
-    true_names = mapping(y_test, class_label_name)
-    preds_names = mapping(preds_test, class_label_name)
+        model = tf.keras.models.load_model("model/model.h5")
+        predictions = model.predict(tf.convert_to_tensor(X_test, dtype=tf.int32))
+        preds_test = [x.argmax() for x in predictions]
+        preds_names = mapping(preds_test, class_label_name)
 
-    plt.figure(figsize=(12,12))
-    size = min(int(np.sqrt(len(X_test))), 5)
+        num_images = X_test.shape[0]
+        num_cols = min(int(np.sqrt(len(X_test))), 5) 
+        num_rows = num_images // num_cols + 1
 
-    for i, elem in enumerate(X_test):
-        ax = plt.subplot(size,size, i+1)
-        plt.imshow(elem)
-        plt.title(class_label_name[y_test[i]])
-        plt.axis("off")
+        for i in range(num_rows):
+            cols = st.columns(num_cols)
+            for j in range(num_cols):
+                idx = i * num_cols + j
+                if idx < num_images:
+                    cols[j].image(X_test[idx], use_column_width=True,
+                                caption=f"{preds_names[idx]}")
+                    
+        preds_cuisine = mapping_cuisine(preds_test, class_label_name)
+
+        final_prediction = max(set(preds_cuisine), key=preds_cuisine.count)
+        st.markdown("### The CNN predicted that the type of cuisine is:")
+        st.markdown(f"## {final_prediction}")
+    else:
+        st.markdown("#### Please upload a zip file containing the pictures for which you want to make predictions.")
+
+
+                
