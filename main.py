@@ -6,12 +6,19 @@ import tensorflow as tf
 from tensorflow import keras
 import cv2
 import os
+import platform
 
 HEIGHT = 128
 WIDTH = 128
 CLASS_NAMES = ['lasagna', 'burrito', 'tacos', 'sushi', 'gyoza', 'pizza', 
                'sashimi', 'edamame', 'pasta', 'risotto', 'nachos', 'ramen']
 
+if (platform.system().lower()=="linux"):
+    bar = "/"
+elif (platform.system().lower()=="windows"):
+    bar = "\\"
+else:
+    bar = "/"
 
 def read_data(path, im_size):
     X = []
@@ -65,7 +72,7 @@ st.set_page_config(
 
 col1, col2, col3 = st.columns([1,5,1])
 with col2:
-    st.image("data/CNN_finalModel.png")
+    st.image(f"data{bar}CNN_finalModel.png")
     st.markdown("<h1 style='text-align: center; color: black;'>CNN classifier for food images</h1>", unsafe_allow_html=True)
     #st.title()
 
@@ -74,7 +81,7 @@ uploaded_file = st.sidebar.file_uploader("Upload your zip file with images", typ
 if uploaded_file is not None:
     try:
         with zipfile.ZipFile(uploaded_file, 'r') as zip_ref:
-            zip_ref.extractall("images/")
+            zip_ref.extractall("images")
             folder_name = zip_ref.namelist()[0]
     except:
         st.write("error")
@@ -130,9 +137,10 @@ elif option=="Predictions":
         st.subheader("Predictions")
 
         class_label_name = {i:class_name for i ,class_name in enumerate(CLASS_NAMES)}
-        X_test, file_paths = read_data(f"images/{folder_name}", (HEIGHT,WIDTH))
+    
+        X_test, file_paths = read_data(f"images{bar}{folder_name}", (HEIGHT,WIDTH))
 
-        model = tf.keras.models.load_model("model/model.h5")
+        model = tf.keras.models.load_model(f"model{bar}model.h5")
         predictions = model.predict(tf.convert_to_tensor(X_test, dtype=tf.int32))
         preds_test = [x.argmax() for x in predictions]
         preds_names = mapping(preds_test, class_label_name)
